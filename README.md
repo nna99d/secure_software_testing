@@ -1,6 +1,7 @@
 # CÀI ĐẶT CÁC CÔNG CỤ
 
 **Cài đặt Selenium WebDriver**
+
 Bước 1: Trên Visual Studio Code, mở terminal, cài đặt selenium bằng
 lệnh:![image](https://github.com/user-attachments/assets/b837202b-9dde-46d2-9a23-fa3d471b0649)
 
@@ -11,6 +12,7 @@ Cài chromedriver với version phù hợp
 ![image](https://github.com/user-attachments/assets/80a50d56-76d6-41ab-ac68-9e0b955a0756)
 
 **Cài đặt module requests và bs4 của Python**
+
 Đây là các module dùng để quét lỗ hổng SQL Injection. Lệnh cài đặt:
 ![image](https://github.com/user-attachments/assets/d6650ade-4740-46f7-8f46-b54476270b1c)
 
