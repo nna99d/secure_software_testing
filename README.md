@@ -37,6 +37,7 @@ Burp Suite là một ứng dụng được tích hợp nhiều tính năng phụ
 tính bảo mật của ứng dụng web
 
 **Cài đặt netcat**
+
 ![image](https://github.com/user-attachments/assets/5d27f591-dc79-4cc6-b2d4-92c28754283d)
 
 Lệnh cài: sudo apt install netcat
