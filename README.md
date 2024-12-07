@@ -3,12 +3,14 @@
 **Cài đặt Selenium WebDriver**
 
 Bước 1: Trên Visual Studio Code, mở terminal, cài đặt selenium bằng
-lệnh:![image](https://github.com/user-attachments/assets/b837202b-9dde-46d2-9a23-fa3d471b0649)
+lệnh:
+![image](https://github.com/user-attachments/assets/b837202b-9dde-46d2-9a23-fa3d471b0649)
 
 
 Bước 2: Cài đặt chromedriver (chú ý: install chromedriver với version
 phải cùng với version chrome).
 Cài chromedriver với version phù hợp
+
 ![image](https://github.com/user-attachments/assets/80a50d56-76d6-41ab-ac68-9e0b955a0756)
 
 **Cài đặt module requests và bs4 của Python**
@@ -22,15 +24,18 @@ Module “bs4”: lấy dữ liệu ra khỏi các file HTML và XML
 
 
 **Cài đặt OWASP Zap**
+
 ![image](https://github.com/user-attachments/assets/af0bd5b5-cdab-4296-8443-66dbb1d8cd8d)
 
 Lệnh cài: sudo apt install zaproxy
+
 **Cài đặt Burp Suite**
 ![image](https://github.com/user-attachments/assets/93246b34-c500-44ca-84da-020419b253fc)
 
 
 Burp Suite là một ứng dụng được tích hợp nhiều tính năng phục vụ kiểm tra
 tính bảo mật của ứng dụng web
+
 **Cài đặt netcat**
 ![image](https://github.com/user-attachments/assets/5d27f591-dc79-4cc6-b2d4-92c28754283d)
 
