@@ -1,156 +1,115 @@
-#!/usr/bin/python
-
-import function
 import requests
-import time
-import config
-from termcolor import colored
-import optparse_mooi
-import optparse
-import validators
-import progressbar
-import json
-from operator import is_not
-from functools import partial
-import logo
-import numpy
-import os
-try:
-    import urlparse # Python2
-except ImportError:
-    import urllib.parse as urlparse # Python3
+from bs4 import BeautifulSoup as bs
+from urllib.parse import urljoin
+from pprint import pprint
 
-# Define parser
-examples_message = """\nExamples:
-  python scanqli.py -u 'http://127.0.0.1/test/?p=news' -o output.log\n  python scanqli.py -u 'https://127.0.0.1/test/' -r -c '{"PHPSESSID":"4bn7uro8qq62ol4o667bejbqo3" , "Session":"Mzo6YWMwZGRmOWU2NWQ1N2I2YTU2YjI0NTMzODZjZDVkYjU="}'\n"""
-logo_message = logo.chooselogo()
+# initialize an HTTP session & set the browser
+s = requests.Session()
+s.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36"
 
-parser = optparse.OptionParser(description=logo_message, usage = "python scanqli.py -u [url] [options]", epilog = examples_message, formatter=optparse_mooi.CompactHelpFormatter(align_long_opts=True, metavar_column=20))
-groupscan = optparse.OptionGroup(parser, "Scanning")
-groupoutput = optparse.OptionGroup(parser, "Output")
+def get_all_forms(url):
+    """Given a `url`, it returns all forms from the HTML content"""
+    soup = bs(s.get(url).content, "html.parser")
+    return soup.find_all("form")
 
-groupscan.add_option('-u', "--url", action="store", dest="url", help="URL to scan", default=None)
-groupscan.add_option('-U', "--urllist", action="store", metavar="file", dest="urllist", help="URL list to scan (one line by url)", default=None)
-groupscan.add_option('-i', "--ignore", action="append", metavar="url", dest="iurl", help="Ignore given URLs during scan", default=None)
-groupscan.add_option('-I', "--ignorelist", action="store", metavar="file", dest="iurllist", help="Ignore given URLs list (one line by url)", default=None)
-groupscan.add_option('-c', "--cookies", action="store", metavar="cookies", dest="cookies", help="Scan with given cookies", default=None, type=str)
-groupscan.add_option('-s', "--nosslcheck", action="store_true", dest="nosslcheck", help="Don't verify SSL certs")
-groupscan.add_option('-q', "--quick", action="store_true", dest="quick", help="Check only very basic vulns", default=None)
-groupscan.add_option('-r', "--recursive", action="store_true", dest="recursive", help="Recursive URL scan (will follow each href)", default=False)
-groupscan.add_option('-w', "--wait", action="store", metavar="seconds", dest="waittime", help="Wait time between each request", default=None, type=str)
-groupoutput.add_option('-v', "--verbose", action="store_true", dest="verbose", help="Display all tested URLs", default=False)
-groupoutput.add_option('-o', "--output", action="store", metavar="file", dest="output", help="Write outputs in file", default=None)
-parser.add_option_group(groupscan)
-parser.add_option_group(groupoutput)
 
-options, args = parser.parse_args()
-
-# Check requiered arg
-if not options.url and not options.urllist:
-    parser.print_help()
-    exit(0)
-elif options.url and validators.url(options.url):
-    url = [options.url]
-elif options.urllist:
-    text_file = open(options.urllist, "r")
-    url = text_file.read().split('\n')
-    url = filter(partial(is_not, ""), url)
-    for infile in url:
-        if not validators.url(infile):
-            function.PrintError("-u " + infile, "Malformed URL. Please given a valid URL")
-            exit(0)
-else:
-    function.PrintError("-u " + options.url, "Malformed URL. Please given a valid URL")
-    exit(0)
-
-# Check verbose args
-function.verbose = options.verbose
-
-# Check log file write perm
-if options.output:
-    if function.CheckFilePerm(options.output):
-        progressbar.logfile = options.output
-    else:
-        function.PrintError("-o " + options.output, "No write permission for output file")
-        exit(0)
-
-# Check Banned URLs
-if options.iurl:
-    for bannedurl in options.iurl:
-        if validators.url(bannedurl):
-            config.BannedURLs.append(bannedurl)
-        else:
-            function.PrintError("-i " + bannedurl, "Malformed URL. Please given a valid URL")
-            exit(0)
-
-if options.iurllist:
+def get_form_details(form):
+    """
+    This function extracts all possible useful information about an HTML `form`
+    """
+    details = {}
+    # get the form action (target url)
     try:
-        filelist = open(options.iurllist, "r")
-        for iurl in filelist:
-            if validators.url(iurl):
-                config.BannedURLs.append(iurl.replace("\n", ""))
-            else:
-                function.PrintError("-I " + options.iurllist + " : " + iurl, "Malformed URL. Please given a valid URL")
-                exit(0)
-    except IOError:
-        function.PrintError("-I " + options.iurllist, "Unable to read the given file")
-        exit(0)
+        action = form.attrs.get("action").lower()
+    except:
+        action = None
+    # get the form method (POST, GET, etc.)
+    method = form.attrs.get("method", "get").lower()
+    # get all the input details such as type and name
+    inputs = []
+    for input_tag in form.find_all("input"):
+        input_type = input_tag.attrs.get("type", "text")
+        input_name = input_tag.attrs.get("name")
+        input_value = input_tag.attrs.get("value", "")
+        inputs.append({"type": input_type, "name": input_name, "value": input_value})
+    # put everything to the resulting dictionary
+    details["action"] = action
+    details["method"] = method
+    details["inputs"] = inputs
+    return details
 
-# Cookies
-if options.cookies:
-    function.cookies = json.loads(options.cookies)
+def is_vulnerable(response):
+    """A simple boolean function that determines whether a page 
+    is SQL Injection vulnerable from its `response`"""
+    errors = {
+        # MySQL
+        "you have an error in your sql syntax;",
+        "warning: mysql",
+        # SQL Server
+        "unclosed quotation mark after the character string",
+        # Oracle
+        "quoted string not properly terminated",
+    }
+    for error in errors:
+        # if you find one of these errors, return True
+        if error in response.content.decode().lower():
+            return True
+    # no error detected
+    return False
 
-# NoSSLCheck
-if options.nosslcheck:
-    function.verifyssl = False
+def scan_sql_injection(url):
+    # test on URL
+    for c in "\"'":
+        # add quote/double quote character to the URL
+        new_url = f"{url}{c}"
+        print("[!] Trying", new_url)
+        # make the HTTP request
+        res = s.get(new_url)
+        if is_vulnerable(res):
+            # SQL Injection detected on the URL itself, 
+            # no need to preceed for extracting forms and submitting them
+            print("[+] SQL Injection vulnerability detected, link:", new_url)
+            return
+    # test on HTML forms
+    forms = get_all_forms(url)
+    print(f"[+] Detected {len(forms)} forms on {url}.")
+    for form in forms:
+        form_details = get_form_details(form)
+        for c in "\"'":
+            # the data body we want to submit
+            data = {}
+            for input_tag in form_details["inputs"]:
+                if input_tag["type"] == "hidden" or input_tag["value"]:
+                    # any input form that is hidden or has some value,
+                    # just use it in the form body
+                    try:
+                        data[input_tag["name"]] = input_tag["value"] + c
+                    except:
+                        pass
+                elif input_tag["type"] != "submit":
+                    # all others except submit, use some junk data with special character
+                    data[input_tag["name"]] = f"test{c}"
+            # join the url with the action (form request URL)
+            url = urljoin(url, form_details["action"])
+            if form_details["method"] == "post":
+                res = s.post(url, data=data)
+            elif form_details["method"] == "get":
+                res = s.get(url, params=data)
+            # test whether the resulting page is vulnerable
+            if is_vulnerable(res):
+                print("[+] SQL Injection vulnerability detected, link:", url)
+                print("[+] Form:")
+                pprint(form_details)
+                break
 
-# Wait time
-if options.waittime:
-    function.waittime = float(options.waittime)
+if __name__ == "__main__":
+    #url = "http://testphp.vulnweb.com/artists.php?artist=1"
+    file = open("/home/kali/Desktop/SQLi Input", "r")
+    while True:
+        url = file.readline()
+        if url == '':
+            break
+        
+    file.close()
+    #scan_sql_injection(url)
 
-# Quick scan
-if options.quick:
-    config.scantype = "quick"
-
-# init config
-config.init()
-
-# Start
-starttime = time.time()
-
-print(logo.chooselogo() + "\n")
-try:
-    if options.recursive:
-        baseurl = []
-        for uniturl in url:
-            if uniturl[-1:] != "/" and os.path.splitext(urlparse.urlparse(uniturl).path)[1] == "":
-                uniturl = uniturl + "/"
-            baseurl.append(uniturl)
-            print("Base URL = " + uniturl)
-        pageset = function.GetAllPages(baseurl)
-        print(str(len(pageset)) + " URLs founds")
-    else:
-        pageset = {None:None}
-        for uniturl in url:
-            print("URL = " + uniturl)
-            pageset.update({uniturl:function.GetHTML(uniturl)})
-        pageset.pop(None)
-
-    print("----------------------------")
-    function.vulnscanstrated = True
-    result = function.CheckPageListAllVulns(pageset)
-
-except KeyboardInterrupt:
-    print("\nStopped after " + str(round(time.time() - starttime, 2)) + " seconds")
-    exit(0)
-
-print("----------------------------")
-try:
-    resultlen = numpy.shape(result)[0] * numpy.shape(result)[1]
-except IndexError:
-    resultlen = 0
-
-if resultlen <= 1:
-    print(colored(str(resultlen) + " vulnerability ", attrs=["bold"])  + "found in " + str(round(time.time() - starttime, 2)) + " seconds!")
-else:
-    print(colored(str(resultlen) + " vulnerabilities ", attrs=["bold"])  + "founds in " + str(round(time.time() - starttime, 2)) + " seconds!")
